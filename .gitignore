@@ -1,0 +1,8 @@
+CrucibleClient/bin
+CrucibleClient/obj
+DBClient/bin
+DBClient/obj
+FishEyeClient/bin
+FishEyeClient/obj
+packages
+.vs

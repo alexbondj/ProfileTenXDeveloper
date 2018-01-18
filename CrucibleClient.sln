@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27130.2010
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Client", "CrucibleClient\Client.csproj", "{EA071EB9-9C8F-4918-9798-26B791D74E1B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FishEyeClient", "FishEyeClient\FishEyeClient.csproj", "{42968506-FECF-421D-978A-B9EF90D7DDD4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DBClient", "DBClient\DBClient.csproj", "{BF09BFA1-89B0-4F99-9D65-ADBCC49C397D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{EA071EB9-9C8F-4918-9798-26B791D74E1B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EA071EB9-9C8F-4918-9798-26B791D74E1B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EA071EB9-9C8F-4918-9798-26B791D74E1B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EA071EB9-9C8F-4918-9798-26B791D74E1B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{42968506-FECF-421D-978A-B9EF90D7DDD4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{42968506-FECF-421D-978A-B9EF90D7DDD4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{42968506-FECF-421D-978A-B9EF90D7DDD4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{42968506-FECF-421D-978A-B9EF90D7DDD4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BF09BFA1-89B0-4F99-9D65-ADBCC49C397D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BF09BFA1-89B0-4F99-9D65-ADBCC49C397D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BF09BFA1-89B0-4F99-9D65-ADBCC49C397D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BF09BFA1-89B0-4F99-9D65-ADBCC49C397D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {6774BEDA-F86A-4DD6-AB34-6BEF556F74E4}
+	EndGlobalSection
+EndGlobal
