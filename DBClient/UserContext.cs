@@ -20,7 +20,6 @@ namespace DBClient
 		protected override void OnModelCreating(DbModelBuilder modelBuilder) {
 			modelBuilder.Properties<DateTime>()
 				.Configure(c => c.HasColumnType("datetime2"));
-
 			modelBuilder.Entity<Changeset>()
 				.HasMany(cs => cs.ChangesetFiles)
 				.WithRequired(cs => cs.Changeset);
@@ -31,11 +30,4 @@ namespace DBClient
 		}
 	}
 
-	public class InitConrtext : DropCreateDatabaseAlways<UserContext>
-	{
-		public override void InitializeDatabase(UserContext context)
-		{
-			base.InitializeDatabase(context);
-		}
-	}
 }

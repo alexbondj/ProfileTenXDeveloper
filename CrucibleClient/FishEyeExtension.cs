@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using DBClient.Entities;
 using FishEyeClient;
 using FishEyeClient.Entities;
 using Changeset = FishEyeClient.Entities.Changeset;
@@ -50,6 +52,89 @@ namespace CrucibleClient
 			return cs.FileRevisionKey;
 		}
 
+		public static DbChangeset ToDbChangeset(this Changeset changeset) {
+			var dbChangeset = new DbChangeset {
+				Author = changeset.Author,
+				CsId = int.Parse(changeset.Csid),
+				Date = changeset.Date.GetDateTimeOrNull(),
+				CsComment = changeset.Comment,
+				RepositoryName = changeset.RepositoryName,
+				CsUrl = changeset.Csid.GetCsUrl(changeset.RepositoryName),
+			};
+			return dbChangeset;
+		}
+
+		public static CodeReview ToCodeReview(this Review review, DbChangeset dbChangeset = null) {
+			var codeReview = new CodeReview {
+				Name = review.Name,
+				Description = review.Description,
+				Author = review.Author.UserName,
+				CreateDate = review.CreateDate.GetDateTimeOrNull(),
+				DueDate = review.DueDate.GetDateTimeOrNull(),
+				CloseDate = review.CloseDate.GetDateTimeOrNull(),
+				PermaId = review.PermaId.Id,
+				CsId = int.Parse(review.ChangesetId),
+				JiraUrl = review.JiraIssueKey.GetJiraUrl(),
+				CrUrl = review.PermaId.Id.GetReviewUrl(),
+				ReviewersCount = review.Reviewers.Count,
+				State = review.State,
+				Summary = review.Summary,
+				Changeset = dbChangeset
+			};
+			return codeReview;
+		}
+
+		public static CodeReview UpdateFilds(this CodeReview oldReview, CodeReview newReview) {
+			oldReview.Name = newReview.Name;
+			oldReview.Description = newReview.Description;
+			oldReview.Author = newReview.Author;
+			oldReview.CreateDate = newReview.CreateDate;
+			oldReview.DueDate = newReview.DueDate;
+			oldReview.CloseDate = newReview.CloseDate;
+			oldReview.ReviewersCount = newReview.ReviewersCount;
+			oldReview.State = newReview.State;
+			oldReview.Summary = newReview.Summary;
+			return oldReview;
+		}
+		public static ChangesetFile ToChangesetFile(this FileRevisionKey fReKey, DbChangeset dbChangeset = null) {
+			if (fReKey.RevisionInfo.Csid == null) {
+				return null;
+			}
+			var changesetFile = new ChangesetFile {
+				Author = fReKey.RevisionInfo.Author,
+				CsId = int.Parse(fReKey.RevisionInfo.Csid),
+				Date = fReKey.RevisionInfo.Date.GetDateTimeOrNull(),
+				TotalLines = fReKey.RevisionInfo.TotalLines,
+				LinesAdded = fReKey.RevisionInfo.LinesAdded,
+				LinesRemoved = fReKey.RevisionInfo.LinesRemoved,
+				Path = fReKey.RevisionInfo.Path,
+				Comment = fReKey.RevisionInfo.Comment,
+				FileRevisionState = fReKey.RevisionInfo.FileRevisionState,
+				Revision = fReKey.RevisionInfo.Rev,
+				RepositoryName = dbChangeset?.RepositoryName,
+				Changeset = dbChangeset
+			};
+			return changesetFile;
+		}
+
+		public static List<CodeReview> GetCodeReviewList(this ReviewsForChangeset reviewsForChangeset, DbChangeset dbChangeset) {
+			var listReview = new List<CodeReview>();
+			reviewsForChangeset.Reviews.ForEach(
+				cr => listReview.Add(cr.ToCodeReview(dbChangeset))
+			);
+			return listReview;
+		}
+
+		public static List<ChangesetFile> ToChangesetFileList(this List<FileRevisionKey> fileRevisionKeys, DbChangeset dbChangeset) {
+			var listFileRev = new List<ChangesetFile>();
+			foreach (var fReKey in fileRevisionKeys) {
+				var cf = fReKey.ToChangesetFile(dbChangeset);
+				if (cf != null) {
+					listFileRev.Add(cf);
+				}
+			}
+			return listFileRev;
+		}
 		public static List<Changeset> LoadReviewInfo(this List<Changeset> changesets, string repository, FishEyeApi feApi) {
 			Console.WriteLine($"Getting changesets Reviews info for repository {repository}");
 			changesets.ForEach(
@@ -67,6 +152,7 @@ namespace CrucibleClient
 			);
 			return changesets;
 		}
+
 		public static List<Changeset> LoadReviewers(this List<Changeset> changesets, FishEyeApi feApi) {
 			Console.WriteLine($"Getting Reviewers data");
 			changesets.ForEach(changeset => changeset

@@ -12,13 +12,35 @@ using DbChangeset = DBClient.Entities.Changeset;
 
 namespace CrucibleClient
 {
-
-
 	public class Program
 	{
-		public static List<DbChangeset> LoadCsFromDb() {
+		private static List<DbChangeset> LoadCsFromDb() {
 			using (UserContext dbContext = new UserContext()) {
 				return dbContext.Changesets.ToList();
+			}
+		}
+
+		private static List<FileRevisionKey> GetChangesetFiles(DbChangeset changeset) {
+			var feApi = new FishEyeApi();
+			Console.ForegroundColor = ConsoleColor.Cyan;
+			return changeset.LoadRevisionInfo(feApi);
+		}
+
+		private static void SaveChangesetFiles() {
+			Console.ForegroundColor = ConsoleColor.Green;
+			Console.WriteLine($"Getting changesets data from DB");
+			var dbChangesets = LoadCsFromDb();
+			dbChangesets.ForEach(cs => SaveChangesetFiles(GetChangesetFiles(cs), cs.RepositoryName, cs));
+		}
+
+		private static void SaveChangesetFiles(List<FileRevisionKey> fileRevisionKeys, string repositoryName, DbChangeset dbChangeset) {
+			using (UserContext dbContext = new UserContext()) {
+				fileRevisionKeys.ForEach(fReKey => dbContext.ChangesetFiles.Add(
+					fReKey.ToChangesetFile()
+				));
+				dbContext.SaveChanges();
+				Console.ForegroundColor = ConsoleColor.Yellow;
+				Console.WriteLine($"Changeset files saved");
 			}
 		}
 
@@ -39,89 +61,35 @@ namespace CrucibleClient
 			return changesets;
 		}
 
-		private static List<FileRevisionKey> GetChangesetFiles(DbChangeset changeset) {
-			var feApi = new FishEyeApi();
-			Console.ForegroundColor = ConsoleColor.Cyan;
-			return changeset.LoadRevisionInfo(feApi);
-		}
-
-		private static void SaveChangesetFiles(List<FileRevisionKey> fileRevisionKeys, string repositoryName, DbChangeset dbChangeset) {
-			using (UserContext dbContext = new UserContext()) {
-				fileRevisionKeys.ForEach(fReKey => dbContext.ChangesetFiles.Add(
-					new ChangesetFile {
-						Author = fReKey.RevisionInfo.Author,
-						CsId = int.Parse(fReKey.RevisionInfo.Csid),
-						Date = fReKey.RevisionInfo.Date.GetDateTimeOrNull(),
-						TotalLines = fReKey.RevisionInfo.TotalLines,
-						LinesAdded = fReKey.RevisionInfo.LinesAdded,
-						LinesRemoved = fReKey.RevisionInfo.LinesRemoved,
-						Path = fReKey.RevisionInfo.Path,
-						Comment = fReKey.RevisionInfo.Comment,
-						FileRevisionState = fReKey.RevisionInfo.FileRevisionState,
-						Revision = fReKey.RevisionInfo.Rev,
-						RepositoryName = repositoryName,
-						Changeset = dbChangeset
-					}
-				));
-				dbContext.SaveChanges();
-				Console.ForegroundColor = ConsoleColor.Yellow;
-				Console.WriteLine($"Changeset files saved");
-			}
-		}
-
 		private static void SaveAllChanges(List<Changeset> changesets) {
 			using (UserContext dbContext = new UserContext()) {
+				Console.ForegroundColor = ConsoleColor.Yellow;
 				foreach (var changeset in changesets) {
-					var dbChangeset = new DbChangeset {
-						Author = changeset.Author,
-						CsId = int.Parse(changeset.Csid),
-						Date = changeset.Date.GetDateTimeOrNull(),
-						CsComment = changeset.Comment,
-						RepositoryName = changeset.RepositoryName,
-						CsUrl = changeset.Csid.GetCsUrl(changeset.RepositoryName),
-					};
-					dbContext.Changesets.Add(dbChangeset);
-					var listReview = new List<CodeReview>();
-					changeset.ReviewsForChangeset.Reviews.ForEach(cr => listReview.Add(new CodeReview {
-						Name = cr.Name,
-						Description = cr.Description,
-						Author = cr.Author.UserName,
-						CreateDate = cr.CreateDate.GetDateTimeOrNull(),
-						DueDate = cr.DueDate.GetDateTimeOrNull(),
-						CloseDate = cr.CloseDate.GetDateTimeOrNull(),
-						PermaId = cr.PermaId.Id,
-						CsId = int.Parse(cr.ChangesetId),
-						JiraUrl = cr.JiraIssueKey.GetJiraUrl(),
-						CrUrl = cr.PermaId.Id.GetReviewUrl(),
-						ReviewersCount = cr.Reviewers.Count,
-						State = cr.State,
-						Summary = cr.Summary,
-						Changeset = dbChangeset
-					}));
-					dbContext.CodeReviews.AddRange(listReview);
-					if (changeset.FileRevisionKey.Count < 500) {
-						var listFileRev = new List<ChangesetFile>();
-						changeset.FileRevisionKey.ForEach(fReKey => listFileRev.Add(
-							new ChangesetFile {
-								Author = fReKey.RevisionInfo.Author,
-								CsId = int.Parse(fReKey.RevisionInfo.Csid),
-								Date = fReKey.RevisionInfo.Date.GetDateTimeOrNull(),
-								TotalLines = fReKey.RevisionInfo.TotalLines,
-								LinesAdded = fReKey.RevisionInfo.LinesAdded,
-								LinesRemoved = fReKey.RevisionInfo.LinesRemoved,
-								Path = fReKey.RevisionInfo.Path,
-								Comment = fReKey.RevisionInfo.Comment,
-								FileRevisionState = fReKey.RevisionInfo.FileRevisionState,
-								Revision = fReKey.RevisionInfo.Rev,
-								RepositoryName = changeset.RepositoryName,
-								Changeset = dbChangeset
+					var dbChangeset = dbContext.Changesets.FirstOrDefault(
+						cs => cs.CsId.ToString() == changeset.Csid && cs.RepositoryName == changeset.RepositoryName);
+					if (dbChangeset == null) {
+						dbChangeset = changeset.ToDbChangeset();
+						dbContext.Changesets.Add(dbChangeset);
+						dbContext.CodeReviews
+							.AddRange(changeset.ReviewsForChangeset.GetCodeReviewList(dbChangeset));
+						dbContext.ChangesetFiles
+							.AddRange(changeset.FileRevisionKey.ToChangesetFileList(dbChangeset));
+						Console.WriteLine("Added new changeset with details");
+					} else {
+						foreach (var codeReview in changeset.ReviewsForChangeset.GetCodeReviewList(dbChangeset)) {
+							var mCodeReview = dbContext.CodeReviews.FirstOrDefault(cr => cr.PermaId == codeReview.PermaId && cr.ChangesetId == dbChangeset.Id);
+							if (mCodeReview != null) {
+								mCodeReview.UpdateFilds(codeReview);
+								dbContext.Entry(mCodeReview).State = EntityState.Modified;
+								Console.WriteLine("CodeReview was updated");
+							} else {
+								dbContext.CodeReviews.Add(codeReview);
+								Console.WriteLine("CodeReview was added");
 							}
-						));
-						dbContext.ChangesetFiles.AddRange(listFileRev);
+						}
 					}
 				}
 				dbContext.SaveChanges();
-				Console.ForegroundColor = ConsoleColor.Yellow;
 				Console.WriteLine("All Changes was saved");
 			}
 		}
@@ -129,14 +97,7 @@ namespace CrucibleClient
 		private static void SaveChangesets(List<Changeset> changesets) {
 			using (UserContext dbContext = new UserContext()) {
 				changesets.ForEach(cs => dbContext.Changesets.Add(
-					new DbChangeset {
-						Author = cs.Author,
-						CsId = int.Parse(cs.Csid),
-						Date = cs.Date.GetDateTimeOrNull(),
-						CsComment = cs.Comment,
-						RepositoryName = cs.RepositoryName,
-						CsUrl = cs.Csid.GetCsUrl(cs.RepositoryName),
-					}
+					cs.ToDbChangeset()
 				));
 				dbContext.SaveChanges();
 				Console.ForegroundColor = ConsoleColor.Yellow;
@@ -146,22 +107,7 @@ namespace CrucibleClient
 		private static void SaveCodeReviews(List<Review> reviews) {
 			using (UserContext dbContext = new UserContext()) {
 				reviews.ForEach(cr => dbContext.CodeReviews.Add(
-					new CodeReview {
-						Name = cr.Name,
-						Description = cr.Description,
-						Author = cr.Author.UserName,
-						CreateDate = cr.CreateDate.GetDateTimeOrNull(),
-						DueDate = cr.DueDate.GetDateTimeOrNull(),
-						CloseDate = cr.CloseDate.GetDateTimeOrNull(),
-						PermaId = cr.PermaId.Id,
-						CsId = int.Parse(cr.ChangesetId),
-						JiraUrl = cr.JiraIssueKey.GetJiraUrl(),
-						CrUrl = cr.PermaId.Id.GetReviewUrl(),
-						ReviewersCount = cr.Reviewers.Count,
-						State = cr.State,
-						Summary = cr.Summary
-					}
-				));
+					cr.ToCodeReview()));
 				dbContext.SaveChanges();
 				Console.ForegroundColor = ConsoleColor.Yellow;
 				Console.WriteLine($"Reviews changes  saved");
@@ -193,39 +139,42 @@ namespace CrucibleClient
 				Console.ForegroundColor = ConsoleColor.Green;
 				Console.WriteLine($"Getting changesets data from repository {repository} from:{start} to:{end}");
 				var changesets = GetChangesetList(repository, start, end);
-				//SaveChangesets(changesets);
-				//var reviews = new List<Review>();
-				//changesets.ForEach(cs => reviews.AddRange(cs.ReviewsForChangeset.Reviews));
-				//SaveCodeReviews(reviews);
 				SaveAllChanges(changesets);
 				start = end;
 				end = end.AddDays(1);
 			}
 		}
 
-		private static void SaveChangesetFiles() {
-			Console.ForegroundColor = ConsoleColor.Green;
-			Console.WriteLine($"Getting changesets data from DB");
-			var dbChangesets = LoadCsFromDb();
-			dbChangesets.ForEach(cs => SaveChangesetFiles(GetChangesetFiles(cs), cs.RepositoryName, cs));
+		private static (DateTime startDate, DateTime endDate) GetInitDates() {
+			DateTime startDate = DateTime.Today.AddDays(-3);
+			DateTime endDate = DateTime.Today.AddDays(1);
+			var sStartDate = ConfigurationManager.AppSettings["startDate"];
+			var sEndDate = ConfigurationManager.AppSettings["endDate"];
+			if (!(string.IsNullOrEmpty(sStartDate) || string.IsNullOrEmpty(sEndDate))) {
+				IFormatProvider culture = new System.Globalization.CultureInfo("en-US", true);
+				startDate = DateTime.Parse(sStartDate, culture, System.Globalization.DateTimeStyles.AssumeLocal);
+				endDate = DateTime.Parse(sEndDate, culture, System.Globalization.DateTimeStyles.AssumeLocal);
+			}
+			var daysCount = ConfigurationManager.AppSettings["daysCount"];
+			if (!string.IsNullOrEmpty(daysCount)) {
+				startDate = DateTime.Today.AddDays(-int.Parse(daysCount));
+			}
+			return (startDate, endDate);
 		}
+
 
 		static void Main(string[] args) {
 			var repositories = ConfigurationManager.AppSettings["crucibleRepositories"].Split(';');
-			DateTime startDate = new DateTime(2017, 10, 01, 00, 00, 00);
-			////DateTime endDate = new DateTime(2018, 01, 01, 00, 00, 00);
-			//DateTime startDate = new DateTime(2018, 01, 10, 00, 00, 00);
-			DateTime endDate = DateTime.Today.AddDays(1);
-			////List<Changeset> changesets = new List<Changeset>();
+			var dates = GetInitDates();
 			foreach (string repository in repositories) {
-				SaveChangesetDayByDay(repository, startDate, endDate);
+				SaveChangesetDayByDay(repository, dates.startDate, dates.endDate);
 			}
-			//SaveChangesetFiles();
-			//var authorList = changesets.GroupBy(ch => ch.Author).OrderBy(ch => ch.Count());
-			//authorList.ToList().ForEach(ch => Console.WriteLine($"{ch.Key}: {ch.Count()}"));
 			Console.ForegroundColor = ConsoleColor.Green;
 			Console.WriteLine("Work's Done!!!");
-			Console.ReadKey();
+			var isBackgroundMode = bool.Parse(ConfigurationManager.AppSettings["useBackgroundMode"]);
+			if (!isBackgroundMode) {
+				Console.ReadKey();
+			}
 		}
 	}
 }
